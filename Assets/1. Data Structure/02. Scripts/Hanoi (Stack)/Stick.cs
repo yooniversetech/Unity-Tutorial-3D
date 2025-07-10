@@ -8,11 +8,10 @@ public class Stick : MonoBehaviour
 
     public Stack<GameObject> stickStack = new Stack<GameObject>();
 
-    private void OnMouseDown()
+    void OnMouseDown()
     {
-        if (HanoiTower.isSelected)
+        if (!HanoiTower.isSelected)
         {
-            HanoiTower.isSelected = true;
             HanoiTower.selectedDonut = PopDonut();
         }
         else
@@ -48,6 +47,7 @@ public class Stick : MonoBehaviour
         if (!CheckDonut(donut))
             return;
 
+        HanoiTower.moveCount++;
         HanoiTower.isSelected = false;
         HanoiTower.selectedDonut = null;
 
@@ -60,8 +60,15 @@ public class Stick : MonoBehaviour
 
     public GameObject PopDonut()
     {
-        GameObject donut = stickStack.Pop(); // Stack에서 Gameobject를 꺼내는 기능
+        if (stickStack.Count > 0)
+        {
+            HanoiTower.currStick = this;
+            HanoiTower.isSelected = true;
+            GameObject donut = stickStack.Pop(); // Stack에서 Gameobject를 꺼내는 기능
 
-        return donut; // 꺼낸 도넛을 반환
+            return donut; // 꺼낸 도넛을 반환
+        }
+
+        return null;
     }
 }
