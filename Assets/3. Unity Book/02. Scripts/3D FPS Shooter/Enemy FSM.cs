@@ -1,6 +1,8 @@
 using System.Collections;
 using UnityEngine;
 using UnityEngine.UI;
+using UnityEngine.AI;
+using System;
 
 public class EnemyFSM : MonoBehaviour
 {
@@ -11,6 +13,7 @@ public class EnemyFSM : MonoBehaviour
     private CharacterController cc; // 적 CharacterController 컴포넌트 접근
 
     private Animator anim;
+    private NavMeshAgent smith;
     
     public float findDistance = 8f;// 탐지 거리
     public float attackDistance = 3f; // 공격 가능 거리
@@ -25,6 +28,7 @@ public class EnemyFSM : MonoBehaviour
     public Slider hpSlider;
 
     private Vector3 originPos;
+    private Quaternion originRot;
     public float moveDistance = 20f;
 
     private void Start()
@@ -34,7 +38,9 @@ public class EnemyFSM : MonoBehaviour
         player = GameObject.Find("Player").transform;
         cc = GetComponent<CharacterController>();
         originPos = transform.position;
+        originRot = transform.rotation;
         anim = transform.GetComponentInChildren<Animator>();
+        smith = GetComponent<NavMeshAgent>();
 
         Cursor.visible = false;
         Cursor.lockState = CursorLockMode.Locked;
@@ -86,14 +92,16 @@ public class EnemyFSM : MonoBehaviour
         }
         else if (Vector3.Distance(transform.position, player.position) > attackDistance)
         {
-            Vector3 dir = (player.position - transform.position).normalized;
-            cc.Move(dir * moveSpeed * Time.deltaTime);
+            smith.isStopped = true;
+            smith.ResetPath();
 
-            transform.forward = dir; // 캐릭터를 앞으로 생각해서 뛰어옴
+            smith.stoppingDistance = attackDistance;
+            smith.SetDestination(player.position);
         }
         else
         {
             currentTime = attackDelay;
+            anim.SetTrigger("MoveToAttackDelay");
             m_State = EnemyState.Attack;
             Debug.Log("상태전환 : Move -> Attack");
         }
@@ -108,29 +116,38 @@ public class EnemyFSM : MonoBehaviour
             if (currentTime > attackDelay)
             {
                 currentTime = 0f;
-                player.GetComponent<FPSPlayerMove>().DamageAction(attackPower);
+                //player.GetComponent<FPSPlayerMove>().DamageAction(attackPower);
+                anim.SetTrigger("StartAttack");
                 Debug.Log("공격");
             }
         }
         else
         {
             currentTime = 0f;
+            anim.SetTrigger("AttackToMove");
             m_State = EnemyState.Move;
             Debug.Log("상태 전환 : Attack -> Move");
         }
+    }
+
+    public void AttackAction()
+    {
+        player.GetComponent<FPSPlayerMove>().DamageAction(attackPower);
     }
     private void Return()
     {
         if (Vector3.Distance(transform.position, originPos) > 0.1f)
         {
-            Vector3 dir = (originPos - transform.position).normalized;
-            cc.Move(dir * moveSpeed * Time.deltaTime);
-
-            transform.forward = dir; // 원점을 앞으로 인식해서 다시 앞으로 뛰어감
+            smith.SetDestination(originPos);
+            smith.stoppingDistance = 0f;
         }
         else
         {
+            smith.isStopped = true;
+            smith.ResetPath();
+
             transform.position = originPos;
+            transform.rotation = originRot;
             hp = 15;
             anim.SetTrigger("Move To Idle");
             m_State = EnemyState.Idle;
@@ -151,8 +168,12 @@ public class EnemyFSM : MonoBehaviour
         }
         hp -= hitPower;
 
+        smith.isStopped = true;
+        smith.ResetPath();
+
         if (hp > 0)
         {
+            anim.SetTrigger("Damaged");
             m_State = EnemyState.Damaged;
             Debug.Log("상태전환 : Any State -> Damaged");
             Damaged();
@@ -160,6 +181,7 @@ public class EnemyFSM : MonoBehaviour
 
         else
         {
+            anim.SetTrigger("Die");
             m_State = EnemyState.Die;
             Debug.Log("상태전환 : Any State -> Die");
             Die();
@@ -167,7 +189,7 @@ public class EnemyFSM : MonoBehaviour
     }
     IEnumerator DamageProcess()
     {
-        yield return new WaitForSeconds(0.5f);
+        yield return new WaitForSeconds(1f);
 
         m_State = EnemyState.Move;
         Debug.Log("상태전환 : Damaged -> Move");
